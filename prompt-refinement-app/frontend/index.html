@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Prompt Refinement Factory</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <header>
+        <h1>Prompt Refinement Factory</h1>
+        <div id="health-status" class="status-indicator">
+            <span class="status-dot"></span>
+            <span class="status-text">Checking...</span>
+        </div>
+    </header>
+
+    <main>
+        <!-- Left Panel: Inputs -->
+        <section class="panel input-panel">
+            <h2>Input Configuration</h2>
+
+            <!-- Trace Selection -->
+            <div class="form-group">
+                <label for="trace-select">Load Trace:</label>
+                <select id="trace-select">
+                    <option value="">-- Select a trace --</option>
+                </select>
+                <button id="load-trace-btn" class="btn btn-secondary">Load</button>
+            </div>
+
+            <!-- Mode Selection -->
+            <div class="form-group">
+                <label>Mode:</label>
+                <div class="radio-group">
+                    <label>
+                        <input type="radio" name="mode" value="planning" checked>
+                        Planning
+                    </label>
+                    <label>
+                        <input type="radio" name="mode" value="monitoring">
+                        Monitoring
+                    </label>
+                </div>
+            </div>
+
+            <!-- Call Selection (for loaded traces) -->
+            <div class="form-group" id="call-selection" style="display: none;">
+                <label for="call-select">Select Call:</label>
+                <select id="call-select">
+                </select>
+            </div>
+
+            <!-- Images -->
+            <div class="form-group">
+                <label>Images:</label>
+                <div class="image-grid" id="image-grid">
+                    <div class="image-placeholder" id="image-before">
+                        <span>BEFORE</span>
+                        <img id="before-img" alt="Before image" style="display:none;">
+                    </div>
+                    <div class="image-placeholder" id="image-after">
+                        <span>AFTER</span>
+                        <img id="after-img" alt="After image" style="display:none;">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Prompt Version Selection -->
+            <div class="form-group">
+                <label for="prompt-version">Prompt Version:</label>
+                <div class="radio-group">
+                    <label>
+                        <input type="radio" name="prompt-version" value="v1">
+                        V1 - Coded Task Names
+                    </label>
+                    <label>
+                        <input type="radio" name="prompt-version" value="v2" checked>
+                        V2 - String Descriptions
+                    </label>
+                </div>
+                <span class="hint" id="prompt-version-hint">V2: 'Use left arm to pick up...' | String descriptions, supports unseen objects</span>
+            </div>
+
+            <!-- System Prompt -->
+            <div class="form-group">
+                <label for="system-prompt">
+                    System Prompt:
+                    <button id="load-current-system" class="btn btn-small">Load Current</button>
+                </label>
+                <textarea id="system-prompt" rows="10" placeholder="Enter system prompt..."></textarea>
+            </div>
+
+            <!-- User Prompt -->
+            <div class="form-group">
+                <label for="user-prompt">
+                    User Prompt:
+                    <button id="load-current-user" class="btn btn-small">Load Current</button>
+                </label>
+                <textarea id="user-prompt" rows="8" placeholder="Enter user prompt..."></textarea>
+            </div>
+
+            <!-- Model Selection -->
+            <div class="form-group">
+                <label>Models to Run:</label>
+                <div class="checkbox-group" id="model-checkboxes">
+                    <label>
+                        <input type="checkbox" name="model" value="4B-Instruct" checked>
+                        Qwen 4B-Instruct
+                    </label>
+                    <label>
+                        <input type="checkbox" name="model" value="4B-Thinking">
+                        Qwen 4B-Thinking
+                    </label>
+                    <label>
+                        <input type="checkbox" name="model" value="2B-Instruct">
+                        Qwen 2B-Instruct
+                    </label>
+                    <label>
+                        <input type="checkbox" name="model" value="2B-Thinking">
+                        Qwen 2B-Thinking
+                    </label>
+                </div>
+            </div>
+
+            <!-- Generation Controls -->
+            <div class="form-group" id="generation-controls">
+                <label>Generation Settings:</label>
+                <div class="thinking-options">
+                    <div class="input-row">
+                        <label for="backend-select">Backend:</label>
+                        <select id="backend-select" title="Inference backend">
+                            <option value="transformers">Transformers (default)</option>
+                            <option value="vllm">vLLM (~28 tok/s)</option>
+                            <option value="tensorrt">TensorRT-LLM (~56 tok/s, fastest)</option>
+                        </select>
+                        <span class="hint" id="backend-status"></span>
+                    </div>
+                    <div class="input-row">
+                        <label for="image-resolution">Image Resolution:</label>
+                        <select id="image-resolution" title="Lower resolution = faster inference">
+                            <option value="micro">Micro (fastest, lower quality)</option>
+                            <option value="tiny">Tiny (fast, lower quality)</option>
+                            <option value="small" selected>Small (balanced, recommended)</option>
+                            <option value="default">Default (best quality, slow)</option>
+                        </select>
+                    </div>
+                    <div class="checkbox-row">
+                        <label>
+                            <input type="checkbox" id="use-sampling">
+                            Use sampling (temperature/top_p)
+                        </label>
+                        <span class="hint">Default: greedy (faster, deterministic)</span>
+                    </div>
+                    <div class="input-row">
+                        <label for="max-tokens">Max Output Tokens:</label>
+                        <input type="number" id="max-tokens" min="64" max="2048" step="64" value="256"
+                               title="Maximum tokens for VLM output (64-2048)">
+                        <span class="hint">default: 256 (planning needs more)</span>
+                    </div>
+                    <div class="checkbox-row">
+                        <label>
+                            <input type="checkbox" id="disable-thinking">
+                            Disable thinking (use /no_think)
+                        </label>
+                        <span class="hint">Thinking models only</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Run Button -->
+            <div class="form-group">
+                <button id="run-btn" class="btn btn-primary btn-large">Run Selected Models</button>
+            </div>
+
+            <!-- GPU Management -->
+            <div class="form-group">
+                <button id="unload-btn" class="btn btn-secondary">Unload Model & Free GPU</button>
+                <span id="loaded-model-status" class="hint"></span>
+            </div>
+
+            <!-- Export for Claude Code -->
+            <div class="form-group">
+                <button id="export-btn" class="btn btn-secondary">Export for Claude Code</button>
+                <p class="hint">Export inputs to compare with Claude Code manually</p>
+            </div>
+        </section>
+
+        <!-- Right Panel: Outputs -->
+        <section class="panel output-panel">
+            <h2>Model Outputs</h2>
+
+            <!-- Output Container -->
+            <div id="output-container">
+                <div class="output-placeholder">
+                    <p>Run models to see outputs here.</p>
+                    <p class="hint">Select models, configure inputs, and click "Run Selected Models".</p>
+                </div>
+            </div>
+
+            <!-- Comparison Section -->
+            <div id="comparison-section" style="display: none;">
+                <h3>Comparison</h3>
+                <div id="comparison-result"></div>
+            </div>
+        </section>
+
+        <!-- Bottom Panel: Prompt Versions -->
+        <section class="panel versions-panel">
+            <h2>Prompt Versions</h2>
+            <div class="versions-toolbar">
+                <button id="save-version-btn" class="btn btn-secondary">Save Current as Version</button>
+                <button id="load-versions-btn" class="btn btn-secondary">Refresh List</button>
+            </div>
+            <div id="versions-list" class="versions-list">
+                <p class="hint">No saved versions. Save your first version above.</p>
+            </div>
+        </section>
+    </main>
+
+    <!-- Save Version Modal -->
+    <div id="save-modal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <h3>Save Prompt Version</h3>
+            <div class="form-group">
+                <label for="version-id">Version ID:</label>
+                <input type="text" id="version-id" placeholder="e.g., monitoring_v1.1">
+            </div>
+            <div class="form-group">
+                <label for="version-name">Name:</label>
+                <input type="text" id="version-name" placeholder="e.g., Added verification steps">
+            </div>
+            <div class="form-group">
+                <label for="version-notes">Notes:</label>
+                <textarea id="version-notes" rows="3" placeholder="What changed and why..."></textarea>
+            </div>
+            <div class="modal-buttons">
+                <button id="save-confirm-btn" class="btn btn-primary">Save</button>
+                <button id="save-cancel-btn" class="btn btn-secondary">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Original Output Modal (for traces) -->
+    <div id="original-modal" class="modal" style="display: none;">
+        <div class="modal-content modal-large">
+            <h3>Original VLM Output</h3>
+            <pre id="original-output"></pre>
+            <button id="close-original-btn" class="btn btn-secondary">Close</button>
+        </div>
+    </div>
+
+    <script src="/static/app.js"></script>
+</body>
+</html>
